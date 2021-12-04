@@ -1,0 +1,100 @@
+---
+title: "p8105_hw6_br2598"
+author: "Brandon Rojas"
+date: "11/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+library(mgcv)
+library(p8105.datasets)
+library(readr)
+set.seed(1337)
+
+```
+
+clean this data:
+one row with menarche at age 0
+
+
+##Problem 1
+
+**Loading and cleaning data**:  (i.e. convert numeric to factor where appropriate, check for missing data, etc.).
+
+We ignore pnumlbw and pnumgsa because they lack values. We do not remove any entries based on birthweight because of the wide variability within premature births, with weights as low as 300g plausible [1].
+
+[1] Glass HC, Costarino AT, Stayer SA, Brett CM, Cladis F, Davis PJ. Outcomes for extremely premature infants. Anesth Analg. 2015;120(6):1337-1351. doi:10.1213/ANE.0000000000000705
+
+```{r}
+birthweight_df = read_csv("birthweight.csv") %>%
+  filter(menarche > 0)  %>%  #menarche at 0 years improbable though theoretically possible (8 months lowest in history). More likely typo for 10.
+  mutate(
+    babysex = as_factor(babysex),
+    frace = as_factor(frace),
+    malform = as_factor(malform),
+    mrace = as_factor(mrace),
+    parity = as_factor(parity),
+    trimester = cut(gaweeks, breaks=c(0, 13, 26, 40, 52))
+    #trimester = recode_factor(gaweeks, "(0,13]", "First Trimester")
+    # ,
+    # trimester = str_replace(gaweeks, "(13,26]", "Second Trimester"),
+    # trimester = str_replace(gaweeks, "(26,40]", "Third Trimester"),
+    # trimester = str_replace(gaweeks, "(40,52]", "Past 3rd Trimester"),
+    )
+    
+levels(birthweight_df$trimester) <- c("First Trimester","Second Trimester", "Third Trimester","Over 40wks")
+
+#   pnumlbw = as_factor(pnumlbw), None in data set.
+#   pnumgsa = as_factor(pnumgsa)
+```
+
+Propose a regression model for birthweight. This model may be based on a hypothesized structure for the factors that underly birthweight, on a data-driven model-building process, or a combination of the two. Describe your modeling process and show a plot of model residuals against fitted values – use add_predictions and add_residuals in making this plot.
+
+```{r}
+fit = lm(bwt ~ delwt, gaweeks + smoken, data = birthweight_df)
+
+fit %>% 
+  broom::tidy()
+
+add_residuals(birthweight_df, fit)
+add_predictions(birthweight_df, fit)
+
+
+
+birthweight_df %>% 
+  modelr::add_residuals(fit) %>% 
+  ggplot(aes(x = borough, y = resid)) + geom_violin()
+```
+
+Make a plot
+Use add predictions and add residuals in making it.
+Compare this plot to similar plots using the two models below. 
+
+Comparison model:
+One using length at birth and gestational age as predictors (main effects only)
+
+```{r}
+blength_gaweek_fit = lm(bwt ~ blength + gaweeks, data = birthweight_df)
+
+#  ggplot(aes(x = borough, y = resid)) + geom_violin() x = predictor, y = resid
+
+
+birthweight_df %>% 
+  add_residuals(blength_gaweek_fit) %>% 
+  ggplot(aes(x = trimester, y = resid)) + geom_violin()
+```
+
+```{r}
+three_way_fit = lm(bwt ~ bhead + blength + babysex, data = birthweight_df)
+
+#  ggplot(aes(x = borough, y = resid)) + geom_violin() x = predictor, y = resid
+
+
+birthweight_df %>% 
+  add_residuals(blength_gaweek_fit) %>% 
+  ggplot(aes(x = trimester, y = resid)) + geom_violin()
+```
+
